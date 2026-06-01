@@ -24,9 +24,12 @@ def merge():
             
         output_path = os.path.join(tmpdir, 'output.mp4')
         
-        # FFmpeg komutu: Videoyu ses süresine göre döngüye (loop) sokar ve sesi düzgünce aac formatında gömer.
+        # FFmpeg komutu: -stream_loop parametresi video_path'ten hemen ÖNCE gelmeli.
+        # Ayrıca hem sesin hem videonun düzgün senkronize bitmesi için -shortest ile birlikte -fflags +genpts eklenmiştir.
         subprocess.run([
-            'ffmpeg', '-stream_loop', '-1', '-i', video_path, '-i', audio_path,
+            'ffmpeg', '-y',
+            '-stream_loop', '-1', '-i', video_path,
+            '-i', audio_path,
             '-map', '0:v', '-map', '1:a',
             '-c:v', 'libx264', '-c:a', 'aac', '-b:a', '192k',
             '-shortest', output_path

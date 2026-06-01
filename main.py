@@ -24,11 +24,11 @@ def merge():
             
         output_path = os.path.join(tmpdir, 'output.mp4')
         
-        # FFmpeg komutu: RAM'i yormamak için videoyu ham haliyle kopyalar (-c:v copy).
-        # -stream_loop 4 diyerek 15 saniyelik videoyu 60 saniyeye kadar uzatır, ses 45. saniyede bittiği için -shortest videoyu orada keser.
+        # FFmpeg komutu: Devasa 4K videonun RAM'i çökertmesini engellemek için -c:v copy kullanıldı.
+        # Sonsuz döngü yerine -stream_loop 3 ile video süresi (24sn) ses süresini (41sn) geçecek şekilde çoklandı.
         subprocess.run([
             'ffmpeg', '-y',
-            '-stream_loop', '4', '-i', video_path,
+            '-stream_loop', '3', '-i', video_path,
             '-i', audio_path,
             '-map', '0:v', '-map', '1:a',
             '-c:v', 'copy', '-c:a', 'aac',

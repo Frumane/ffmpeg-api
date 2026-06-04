@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_file
-import subprocess, requests, base64, os, tempfile, shutil
+import subprocess, requests, base64, os, tempfile, shutil, math
 
 app = Flask(__name__)
 
@@ -132,15 +132,21 @@ def merge():
             except Exception as e:
                 cleanup(); return jsonify({"error": f"audio_base64 cozulemedi: {e}"}), 400
 
-        # 2) Build the ffmpeg command
+        # 2) Build the ffmpeg command. Loop the (short) video a FINITE number of
+        #    times to comfortably cover the audio, then -shortest trims to audio.
+        #    Infinite -stream_loop -1 + filter_complex + -shortest can deadlock.
+        adur = probe_duration(audio_path)
+        vdur = probe_duration(video_path)
+        loops = 4
+        if adur > 0 and vdur > 0:
+            loops = max(0, int(math.ceil(adur / vdur)))
         if subtitle_text:
             # Burn captions -> must re-encode the video
-            dur = probe_duration(audio_path)
             w, h = probe_dims(video_path)
             with open(subs_path, "w", encoding="utf-8") as f:
-                f.write(build_ass(subtitle_text, dur, w, h))
+                f.write(build_ass(subtitle_text, adur, w, h))
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats",
-                   "-stream_loop", "-1", "-i", video_path,
+                   "-stream_loop", str(loops), "-i", video_path,
                    "-i", audio_path,
                    "-filter_complex", "[0:v]ass=%s[v]" % subs_path,
                    "-map", "[v]", "-map", "1:a:0",
@@ -151,7 +157,7 @@ def merge():
         else:
             # No captions -> fast stream copy (no re-encode)
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats",
-                   "-stream_loop", "-1", "-i", video_path,
+                   "-stream_loop", str(loops), "-i", video_path,
                    "-i", audio_path,
                    "-map", "0:v:0", "-map", "1:a:0",
                    "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",

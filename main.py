@@ -139,7 +139,7 @@ def merge():
             w, h = probe_dims(video_path)
             with open(subs_path, "w", encoding="utf-8") as f:
                 f.write(build_ass(subtitle_text, dur, w, h))
-            cmd = ["ffmpeg", "-y",
+            cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats",
                    "-stream_loop", "-1", "-i", video_path,
                    "-i", audio_path,
                    "-filter_complex", "[0:v]ass=%s[v]" % subs_path,
@@ -150,7 +150,7 @@ def merge():
                    "-movflags", "+faststart", "-shortest", output_path]
         else:
             # No captions -> fast stream copy (no re-encode)
-            cmd = ["ffmpeg", "-y",
+            cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats",
                    "-stream_loop", "-1", "-i", video_path,
                    "-i", audio_path,
                    "-map", "0:v:0", "-map", "1:a:0",

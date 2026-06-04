@@ -145,13 +145,16 @@ def merge():
             w, h = probe_dims(video_path)
             with open(subs_path, "w", encoding="utf-8") as f:
                 f.write(build_ass(subtitle_text, adur, w, h))
+            scale = ("[0:v]scale='min(1080,iw)':'min(1920,ih)':"
+                     "force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                     "ass=%s[v]" % subs_path)
             cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats",
                    "-stream_loop", str(loops), "-i", video_path,
                    "-i", audio_path,
-                   "-filter_complex", "[0:v]ass=%s[v]" % subs_path,
+                   "-filter_complex", scale,
                    "-map", "[v]", "-map", "1:a:0",
-                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-                   "-pix_fmt", "yuv420p",
+                   "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                   "-pix_fmt", "yuv420p", "-threads", "2",
                    "-c:a", "aac", "-b:a", "128k",
                    "-movflags", "+faststart", "-shortest", output_path]
         else:

@@ -188,5 +188,74 @@ def merge():
         return jsonify({"error": str(e)}), 500
 
 
+DEFAULT_BIST = ["THYAO", "ASELS", "GARAN", "AKBNK", "KCHOL", "SAHOL", "BIMAS",
+                "EREGL", "SISE", "TUPRS", "FROTO", "TCELL", "ISCTR", "YKBNK",
+                "PGSUS", "TOASO", "SASA", "KOZAL", "PETKM", "ENKAI"]
+
+
+def _rsi(series, period=14):
+    delta = series.diff()
+    up = delta.clip(lower=0).rolling(period).mean()
+    down = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = up / down.replace(0, 1e-9)
+    return float((100 - 100 / (1 + rs)).iloc[-1])
+
+
+@app.route("/bist", methods=["GET", "POST"])
+def bist():
+    """Return technical + fundamental data for a list of BIST symbols."""
+    try:
+        import yfinance as yf
+    except Exception as e:
+        return jsonify({"error": "yfinance import: %s" % e}), 500
+
+    data = request.get_json(silent=True) or {}
+    syms = data.get("symbols") or DEFAULT_BIST
+    out = []
+    for s in syms:
+        s = str(s).upper().replace(".IS", "")
+        t = s + ".IS"
+        try:
+            tk = yf.Ticker(t)
+            h = tk.history(period="6mo")
+            c = h["Close"].dropna() if (h is not None and not h.empty) else None
+            if c is None or len(c) < 30:
+                continue
+            last = float(c.iloc[-1])
+
+            def pct(n):
+                return round((last / float(c.iloc[-n - 1]) - 1) * 100, 2) if len(c) > n else None
+
+            sma20 = float(c.rolling(20).mean().iloc[-1])
+            sma50 = float(c.rolling(50).mean().iloc[-1])
+            tail = c.tail(252)
+            hi52, lo52 = float(tail.max()), float(tail.min())
+            try:
+                info = tk.info or {}
+            except Exception:
+                info = {}
+
+            def m(key, mult=1, nd=2):
+                v = info.get(key)
+                return round(v * mult, nd) if isinstance(v, (int, float)) else None
+
+            out.append({
+                "sembol": s,
+                "fiyat": round(last, 2),
+                "degisim_1g": pct(1), "degisim_5g": pct(5), "degisim_20g": pct(20),
+                "sma20": round(sma20, 2), "sma50": round(sma50, 2),
+                "sma20_uzaklik": round((last / sma20 - 1) * 100, 2),
+                "trend": "yukari" if sma20 > sma50 else "asagi",
+                "rsi14": round(_rsi(c), 1),
+                "konum_52h": round((last - lo52) / (hi52 - lo52 + 1e-9) * 100, 1),
+                "fk": m("trailingPE"), "pddd": m("priceToBook"),
+                "net_marj": m("profitMargins", 100), "ozkaynak_karlilik": m("returnOnEquity", 100),
+                "piyasa_degeri": info.get("marketCap"), "sektor": info.get("sector"),
+            })
+        except Exception:
+            continue
+    return jsonify({"count": len(out), "data": out})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
